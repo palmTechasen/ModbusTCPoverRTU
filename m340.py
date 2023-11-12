@@ -58,7 +58,7 @@ write_clicked = False
 
 # can be logged multiple at a time
 b_log_clicked = [False for i in range(len(variables))]
-b_filename = [variables[i]+".txt" for i in range(len(variables))]
+b_filename = [variables[i]+".csv" for i in range(len(variables))]
 
 # plot from the file once per click
 plot_clicked = False
