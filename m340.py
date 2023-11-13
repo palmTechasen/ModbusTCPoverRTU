@@ -8,10 +8,9 @@ from datetime import datetime
 from float_rw import FloatModbusClient
 from threading import *
 from tkinter import *
-from sys import exit
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationToolbar2Tk)
-import matplotlib.pyplot as plt
+import os.path
 
 sem = threading.Semaphore(1)
 
@@ -120,6 +119,9 @@ def plot(option):
 
     # separate x and y axes
     with open(filename, 'r') as f:
+
+        line = f.readline()  # skip the header line of the file
+
         for line in f:
             plot_time = line.split(',')[0]
             plot_value = line.split(',')[1]
@@ -155,7 +157,14 @@ def plot(option):
 
 # log a line into a file in csv format
 def log(filename, *data):
+    filepath = './/'+filename
+    file_exist = os.path.isfile(filepath) # check if the file already exist before opening
+
+    # open the file and write the header if not previously exist
     f = open(filename, 'a')
+    if not file_exist:
+        f.write("Time"+","+filename.split('.')[0])  # print the header row using Time and header without .csv or .txt
+        f.write("\n")
 
     # replace with a list as the index is needed to determine if the comma will be printed
     l_data = list(data)
