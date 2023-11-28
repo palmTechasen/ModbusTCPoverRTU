@@ -9,22 +9,37 @@ from float_rw import FloatModbusClient
 from threading import *
 from tkinter import *
 from matplotlib.figure import Figure
+from matplotlib import pyplot as plt
 from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationToolbar2Tk)
 import os.path
 
 sem = threading.Semaphore(1)
 
 ##############################################################################################################
-M340_IP = "192.168.1.103"
-M340_PORT = 502
+# M340_IP = "192.168.1.103"
+# M340_PORT = 502
 
+##############################################################################################################
+# M172_IP = "192.168.1.182"
+# M172_PORT = 502
+
+devices = list()
+devices.append("M340")
+devices.append("M172")
+
+addresses = {"M340": ["192.168.1.103", 502, True], "M172": ["192.168.1.182", 502, False]}
+# Boolean: are all the variables pre-processed and ready to use?
+
+connections = {}
+
+for i in range(len(devices)):
+	connections[devices[i]] = FloatModbusClient(host=addresses[devices[i]][0], port=addresses[devices[i]][1], auto_open=True)
 
 # establish the connection via modbus
-m340_modbus = FloatModbusClient(host=M340_IP, port=M340_PORT, auto_open=True)
 
 # start creating GUI
 win = Tk()
-win.title("M340 Control")
+win.title("M340&M172 Control")
 
 # text describing the file name and the label in the UI
 # The first group is for read-write registers and the second group is for read-only registers
@@ -40,6 +55,11 @@ variables_read_only = list()
 variables_read_only.append("Temp1")
 variables_read_only.append("Temp3")
 variables_read_only.append("FCU_supply_temp_PV")
+# variables_read_only.append("DesignAirflow_D3")
+# variables_read_only.append("RawReads[3,11]")
+variables_read_only.append("R3_Perf_CO2")
+variables_read_only.append("CO2_D3")
+variables_read_only.append("R3_Bel_Temp")
 
 variables = variables_read_write+variables_read_only
 
@@ -48,9 +68,9 @@ values_read = [0 for i in range(len(variables))]  # initialise the corresponding
 
 # define a dictionary of register addresses and the datatype for M340 and M172: [address, datatype]
 #############################################################################################################
-register_addr_type = {"FCU Mode": [219, 'INT'], "FCU Fan Speed": [213, 'INT'], "FCU Temperature SP": [370, 'FLOAT'],
-                      "Main Lab Right Damper": [221, 'INT'], "FCU Fan State": [215, 'INT'],"Temp1": [338, 'FLOAT'], "Temp3": [332, 'FLOAT'],
-                      "FCU_supply_temp_PV": [320, 'FLOAT']}
+register_addr_type = {"FCU Mode": [219, 'INT', "M340"], "FCU Fan Speed": [213, 'INT', "M340"], "FCU Temperature SP": [370, 'FLOAT', "M340"],
+                      "Main Lab Right Damper": [221, 'INT', "M340"], "FCU Fan State": [215, 'INT', "M340"],"Temp1": [338, 'FLOAT', "M340"], "Temp3": [332, 'FLOAT', "M340"],
+                      "FCU_supply_temp_PV": [320, 'FLOAT', "M340"], "R3_Perf_CO2": [8972,'INT', "M172", 0.1], "CO2_D3": [9302,'INT', "M172", 0.1], "R3_Bel_Temp": [8989,'INT', "M172", 4]}
 
 # write value to the plc only once per click
 write_clicked = False
@@ -69,8 +89,10 @@ entries = list()
 buttons_write = list()
 buttons_log = list()
 buttons_stop_log = list()
+scales_plot = list()
 buttons_plot = list()
-
+figures = list()
+canva = list()
 # create string variables for entry widget
 entry = list()
 for i in range(len(variables_read_write)):
@@ -88,8 +110,10 @@ for i in range(len(variables)):
 
     buttons_log.append(Button(win, text="log", command=lambda k=i: log_select(k)))
     buttons_stop_log.append(Button(win, text="stop log", command=lambda k=i: log_deselect(k), state=DISABLED))
-    buttons_plot.append(Button(win, text="plot from log", command=lambda k=i: plot(k)))
-
+    scales_plot.append(Scale(win, label="Figure", from_=0, to=len(variables)-1, orient=HORIZONTAL, length=200)) 
+    buttons_plot.append(Button(win, text="plot from log", command=lambda k=i: plot(k,scales_plot[k].get())))
+    figures.append(Figure(figsize=(1, 1), dpi=50))
+    canva.append(FigureCanvasTkAgg(figures[i], master=win))
 
 # arrange the GUI
 # The first four are read-write registers and the last three are read-only registers
@@ -103,11 +127,12 @@ for i in range(len(variables)):
 
     buttons_log[i].grid(row=i, column=4)
     buttons_stop_log[i].grid(row=i, column=5)
-    buttons_plot[i].grid(row=i, column=6)
-
+    scales_plot[i].grid(row=i, column=6)
+    buttons_plot[i].grid(row=i, column=7)
+    canva[i].get_tk_widget().grid(row=i, column=8)
 
 # plot the file
-def plot(option):
+def plot(option,figure):
     global plot_clicked
 
     # select the filename to be plotted
@@ -127,33 +152,33 @@ def plot(option):
             plot_value = line.split(',')[1]
 
             # turn it into int or float
-            if register_addr_type[variables[option]][1].upper() == 'INT':
-                plot_value = int(plot_value)
-            elif register_addr_type[variables[option]][1].upper() == 'FLOAT':
-                plot_value = float(plot_value)
-
+            # if register_addr_type[variables[option]][1].upper() == 'INT':
+            #     plot_value = int(plot_value)
+            # elif register_addr_type[variables[option]][1].upper() == 'FLOAT':
+            #     plot_value = float(plot_value)
+            plot_value = float(plot_value)
             time_series.append(plot_time)
             value_series.append(plot_value)
 
     # create the figure that will contain the plot
-    fig = Figure(figsize=(5, 5), dpi=100)
+    fig = figures[figure]
+    # fig.set_size_inches(5, 5, forward=True)
+    # fig.set_dpi(100)
+    print(f"{figure} contains {option} from {filename}")
 
     # adding the subplot
-    plot1 = fig.add_subplot(111)
+    if option < 10:
+        plot1 = fig.add_subplot(option*111)
+    elif option < 91:
+        plot1 = fig.add_subplot(option*11)
+    elif option < 1000:
+        plot1 = fig.add_subplot(option*1)
 
     # plotting the graph
     plot1.plot(time_series, value_series)
     plot1.set_title(filename)
-
-    # creating the Tkinter canvas
-    # containing the Matplotlib figure
-    canvas = FigureCanvasTkAgg(fig,
-                               master=win)
-    canvas.draw()
-
-    # placing the canvas on the Tkinter window
-    canvas.get_tk_widget().grid(row=option, column=7)
-
+    plt.show()
+    canva[figure].draw()
 
 # log a line into a file in csv format
 def log(filename, *data):
@@ -222,9 +247,9 @@ def write_registers():
 
         # select to write out as float or int
         if register_addr_type[variables_read_write[i]][1].upper() == 'INT':
-            m340_modbus.write_multiple_registers(register_addr_type[variables_read_write[i]][0], [int(values_write[i])])
+            connections[register_addr_type[variables[i]][2]].write_multiple_registers(register_addr_type[variables_read_write[i]][0], [int(values_write[i])])
         elif register_addr_type[variables_read_write[i]][1].upper() == 'FLOAT':
-            m340_modbus.write_float(register_addr_type[variables_read_write[i]][0], [float(values_write[i])])
+            connections[register_addr_type[variables[i]][2]].write_float(register_addr_type[variables_read_write[i]][0], [float(values_write[i])])
 
     sem.release()
 
@@ -238,18 +263,20 @@ def read_registers():
 
     # read the read-write registers to ensure the value is already set after a click, not overwritten by others
     for i in range(len(variables)):
-
         # select to read as int or float
         if register_addr_type[variables[i]][1].upper() == 'INT':
-            values_read[i] = m340_modbus.read_holding_registers(register_addr_type[variables[i]][0], 1)[0]
-            labels_read[i].config(text=values_read[i])
+            temp = connections[register_addr_type[variables[i]][2]].read_holding_registers(register_addr_type[variables[i]][0], 1)[0]
         elif register_addr_type[variables[i]][1].upper() == 'FLOAT':
-            values_read[i] = m340_modbus.read_float(register_addr_type[variables[i]][0], 1)[0]
-            labels_read[i].config(text=round(values_read[i], 1))
+            temp = connections[register_addr_type[variables[i]][2]].read_float(register_addr_type[variables[i]][0], 1)[0]
 
+        if addresses[register_addr_type[variables[i]][2]][2] == False:
+            values_read[i] = temp * register_addr_type[variables[i]][3]
+        else:
+            values_read[i] = temp
+
+        labels_read[i].config(text=round(values_read[i], 1))
         if b_log_clicked[i]:
             log(b_filename[i], time, str(values_read[i]))
-
     sem.release()
 
 
@@ -259,4 +286,5 @@ if __name__ == '__main__':
 
     win.mainloop()
 
-m340_modbus.close()
+for i in range(len(devices)):
+	connections[devices[i]].close()
