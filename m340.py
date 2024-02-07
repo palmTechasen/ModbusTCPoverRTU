@@ -8,6 +8,7 @@ from datetime import datetime
 from float_rw import FloatModbusClient
 from threading import *
 from tkinter import *
+from tkinter.ttk import Scale
 from matplotlib.figure import Figure
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationToolbar2Tk)
@@ -50,6 +51,8 @@ variables_read_write.append("FCU Fan Speed")
 variables_read_write.append("FCU Temperature SP")
 variables_read_write.append("Main Lab Right Damper")
 variables_read_write.append("FCU Fan State")
+variables_read_write.append("T_SP_D3")
+variables_read_write.append("T_deadband_D3")
 
 variables_read_only = list()
 variables_read_only.append("Temp1")
@@ -60,17 +63,41 @@ variables_read_only.append("FCU_supply_temp_PV")
 variables_read_only.append("R3_Perf_CO2")
 variables_read_only.append("CO2_D3")
 variables_read_only.append("R3_Bel_Temp")
+variables_read_only.append("Position_D3")
+variables_read_only.append("Airflow_D3")
+variables_read_only.append("Pressure_D3")
+variables_read_only.append("Room_T_D1")
+variables_read_only.append("Room_T_D2")
+variables_read_only.append("Room_T_D3")
+variables_read_only.append("Supply_T_D3")
+variables_read_only.append("Position_D1")
+variables_read_only.append("Position_D2")
+variables_read_only.append("TemperatureCO2_D1")
+variables_read_only.append("TemperatureCO2_D2")
+variables_read_only.append("TemperatureCO2_D3")
+variables_read_only.append("PresRelief_D1")
+variables_read_only.append("PresOffset_D1")
+variables_read_only.append("PresRelief_D2")
+variables_read_only.append("PresOffset_D2")
+variables_read_only.append("PresRelief_D3")
+variables_read_only.append("PresOffset_D3")
 
 variables = variables_read_write+variables_read_only
 
 values_write = [0 for i in range(len(variables_read_write))]  # initialise the corresponding values for writing out
-values_read = [0 for i in range(len(variables))]  # initialise the corresponding values for reading in
+values_read = [66666 for i in range(len(variables))]  # initialise the corresponding values for reading in
 
 # define a dictionary of register addresses and the datatype for M340 and M172: [address, datatype]
 #############################################################################################################
 register_addr_type = {"FCU Mode": [219, 'INT', "M340"], "FCU Fan Speed": [213, 'INT', "M340"], "FCU Temperature SP": [370, 'FLOAT', "M340"],
                       "Main Lab Right Damper": [221, 'INT', "M340"], "FCU Fan State": [215, 'INT', "M340"],"Temp1": [338, 'FLOAT', "M340"], "Temp3": [332, 'FLOAT', "M340"],
-                      "FCU_supply_temp_PV": [320, 'FLOAT', "M340"], "R3_Perf_CO2": [8972,'INT', "M172", 0.1], "CO2_D3": [9302,'INT', "M172", 0.1], "R3_Bel_Temp": [8989,'INT', "M172", 4]}
+                      "FCU_supply_temp_PV": [320, 'FLOAT', "M340"], "R3_Perf_CO2": [8972,'INT', "M172", 0.1], "CO2_D3": [9302,'INT', "M172", 0.1],
+                      "R3_Bel_Temp": [8989,'INT', "M172", 4], "Position_D3": [9305,'INT', "M172", 1.0], "Airflow_D3": [9309, 'INT', "M172", 0.1],
+                      "Pressure_D3": [9301, 'INT', "M172", 0.1], "Room_T_D3": [9299, 'INT', "M172", 0.1], "Supply_T_D3": [9300, 'INT', "M172", 0.1],
+                      "T_SP_D3": [9319, 'INT', "M172", 0.1], "T_deadband_D3": [9320, 'INT', "M172", 0.1], "Position_D1": [9105,'INT', "M172", 1.0], "Position_D2": [9205,'INT', "M172", 1.0],
+                      "TemperatureCO2_D1": [9124, 'INT', "M172", 0.1], "TemperatureCO2_D2": [9224, 'INT', "M172", 0.1], "TemperatureCO2_D3": [9324, 'INT', "M172", 0.1],
+                      "Room_T_D1": [9099, 'INT', "M172", 0.1],"Room_T_D2": [9199, 'INT', "M172", 0.1], "PresRelief_D1": [9121, 'INT', "M172", 0.001], "PresOffset_D1": [9163, 'INT', "M172", 0.1],
+                      "PresRelief_D2": [9221, 'INT', "M172", 0.001], "PresOffset_D2": [9263, 'INT', "M172", 0.1],"PresRelief_D3": [9321, 'INT', "M172", 0.001], "PresOffset_D3": [9363, 'INT', "M172", 0.1]}
 
 # write value to the plc only once per click
 write_clicked = False
@@ -91,8 +118,6 @@ buttons_log = list()
 buttons_stop_log = list()
 scales_plot = list()
 buttons_plot = list()
-figures = list()
-canva = list()
 # create string variables for entry widget
 entry = list()
 for i in range(len(variables_read_write)):
@@ -110,10 +135,8 @@ for i in range(len(variables)):
 
     buttons_log.append(Button(win, text="log", command=lambda k=i: log_select(k)))
     buttons_stop_log.append(Button(win, text="stop log", command=lambda k=i: log_deselect(k), state=DISABLED))
-    scales_plot.append(Scale(win, label="Figure", from_=0, to=len(variables)-1, orient=HORIZONTAL, length=200)) 
+    scales_plot.append(Scale(win, from_=0, to=len(variables)-1, orient=HORIZONTAL, length=200)) 
     buttons_plot.append(Button(win, text="plot from log", command=lambda k=i: plot(k,scales_plot[k].get())))
-    figures.append(Figure(figsize=(1, 1), dpi=50))
-    canva.append(FigureCanvasTkAgg(figures[i], master=win))
 
 # arrange the GUI
 # The first four are read-write registers and the last three are read-only registers
@@ -129,7 +152,6 @@ for i in range(len(variables)):
     buttons_stop_log[i].grid(row=i, column=5)
     scales_plot[i].grid(row=i, column=6)
     buttons_plot[i].grid(row=i, column=7)
-    canva[i].get_tk_widget().grid(row=i, column=8)
 
 # plot the file
 def plot(option,figure):
@@ -157,28 +179,15 @@ def plot(option,figure):
             # elif register_addr_type[variables[option]][1].upper() == 'FLOAT':
             #     plot_value = float(plot_value)
             plot_value = float(plot_value)
+            #if len(value_series) == 0 or value_series[-1] != plot_value:
             time_series.append(plot_time)
             value_series.append(plot_value)
 
-    # create the figure that will contain the plot
-    fig = figures[figure]
-    # fig.set_size_inches(5, 5, forward=True)
-    # fig.set_dpi(100)
-    print(f"{figure} contains {option} from {filename}")
-
-    # adding the subplot
-    if option < 10:
-        plot1 = fig.add_subplot(option*111)
-    elif option < 91:
-        plot1 = fig.add_subplot(option*11)
-    elif option < 1000:
-        plot1 = fig.add_subplot(option*1)
-
     # plotting the graph
-    plot1.plot(time_series, value_series)
-    plot1.set_title(filename)
+    plt.figure(figure)
+    plt.plot(time_series, value_series, lw=0, marker='o', label=filename)
+    plt.legend()
     plt.show()
-    canva[figure].draw()
 
 # log a line into a file in csv format
 def log(filename, *data):
@@ -270,13 +279,17 @@ def read_registers():
             temp = connections[register_addr_type[variables[i]][2]].read_float(register_addr_type[variables[i]][0], 1)[0]
 
         if addresses[register_addr_type[variables[i]][2]][2] == False:
-            values_read[i] = temp * register_addr_type[variables[i]][3]
+            temp = temp * register_addr_type[variables[i]][3]
         else:
-            values_read[i] = temp
+            temp = temp
 
-        labels_read[i].config(text=round(values_read[i], 1))
-        if b_log_clicked[i]:
-            log(b_filename[i], time, str(values_read[i]))
+        labels_read[i].config(text=round(temp, 1))
+
+        if b_log_clicked[i] and (values_read[i] == 66666 or values_read[i] != temp) and (temp != 0 or values_read[i] != 0):
+            log(b_filename[i], time, str(temp))
+
+        values_read[i] = temp
+
     sem.release()
 
 
