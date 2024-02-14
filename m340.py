@@ -32,7 +32,14 @@ devices.append("M172")
 
 Diffusers = 3
 DiffuserSpacing = 200
+GridSpacing = 9
+# M172 address spacing
 DiffuserEnds = []
+
+def update_scrollregion(event):
+    DiffusersScrollCanvas.configure(scrollregion=DiffusersScrollCanvas.bbox("all"))
+
+
 
 for i in range(Diffusers):
     DiffuserEnds.append('_D'+str(i+1))
@@ -160,13 +167,18 @@ scales_plot = list()
 buttons_plot = list()
 # create string variables for entry widget
 entry = list()
+checkboxes = list()
+checked = []
+for i in range(Diffusers):
+    checked.append(IntVar())
 for i in range(len(variables_read_write)):
     entry.append(StringVar())
 
-## ExternalFrame = Frame(win, width=1700, height=990, background="orange")
-## DiffusersScrollCanvas = Canvas(ExternalFrame, bg="green")
-## DiffusersScrollFrame = Frame(DiffusersScrollCanvas, background="white")
-DiffusersScrollFrame = Frame(win, background="white")
+ExternalFrame = Frame(win, background="beige")
+CheckboxesFrame = Frame(win, background="blue")
+DiffusersScrollCanvas = Canvas(ExternalFrame, bg="green")
+DiffusersScrollFrame = Frame(DiffusersScrollCanvas, background="white")
+## DiffusersScrollFrame = Frame(win, background="white")
 # initialise the GUI widgets
 # The first four are read-write registers and the last three are read-only registers
 for i in range(len(variables)):
@@ -188,14 +200,44 @@ for i in range(len(variables)):
 
 j = 0
 columnextra = 0
-for i in range(8*Diffusers):
+for i in range(GridSpacing):
     win.grid_columnconfigure(i, weight=1)
-for i in range(rows):
+for i in range(rows+1):
     win.grid_rowconfigure(i, weight=1)
-for i in range(8*Diffusers):
+for i in range(GridSpacing*Diffusers):
     DiffusersScrollFrame.grid_columnconfigure(i, weight=1)
 for i in range(Drows):
     DiffusersScrollFrame.grid_rowconfigure(i, weight=1)
+def toggle_entry():
+    for i in range(Diffusers):
+        for k in range(Drows):
+            if(checked[i].get() == 0):
+                labels_text[Drows*i+k].grid_remove()
+                labels_read[Drows*i+k].grid_remove()
+                if k < len(variables_read_write):  # widget only for writing the holding registers from index 0-3
+                    entries[Drows*i+k].grid_remove()
+                    buttons_write[Drows*i+k].grid_remove()
+                buttons_log[Drows*i+k].grid_remove()
+                buttons_stop_log[Drows*i+k].grid_remove()
+                scales_plot[Drows*i+k].grid_remove()
+                buttons_plot[Drows*i+k].grid_remove()
+            if(checked[i].get() == 1):
+                labels_text[Drows*i+k].grid()
+                labels_read[Drows*i+k].grid()
+                if k < len(variables_read_write):  # widget only for writing the holding registers from index 0-3
+                    entries[Drows*i+k].grid()
+                    buttons_write[Drows*i+k].grid()
+                buttons_log[Drows*i+k].grid()
+                buttons_stop_log[Drows*i+k].grid()
+                scales_plot[Drows*i+k].grid()
+                buttons_plot[Drows*i+k].grid()
+            # DiffusersScrollFrame.grid_columnconfigure(GridSpacing*i+j, weight=checked[i].get())
+for i in range(Diffusers):
+    # checked[i]=Variable()
+    checkboxes.append(Checkbutton(CheckboxesFrame, variable = checked[i], command=toggle_entry, onvalue = 1, offvalue = 0, height=5, width = 20, ))
+    checkboxes[i].grid(row=0, column=i)
+# ExternalFrame.grid_rowconfigure(0, weight=9)
+# ExternalFrame.grid_rowconfigure(1, weight=1)
 # arrange the GUI
 # The first four are read-write registers and the last three are read-only registers
 k = 0
@@ -203,7 +245,7 @@ rowD = 0
 rowsDict = {}
 for i in range(len(variables)):
     if(variables[i].endswith(DiffuserEndsTuple)):
-        columnextra = (int(variables[i].rpartition("_D")[2])-1)*8
+        columnextra = (int(variables[i].rpartition("_D")[2])-1)*GridSpacing
         if(variables[i].endswith('_D1')):
             rowD = j
         else:
@@ -232,16 +274,20 @@ for i in range(len(variables)):
         scales_plot[i].grid(row=k, column=(6 + columnextra), sticky="NWES")
         buttons_plot[i].grid(row=k, column=(7 + columnextra), sticky="NWES")
         k = k+1
-DiffusersScrollFrame.grid(row=k, column=0, columnspan=8*Diffusers, rowspan=Drows, sticky="NWES")
-l=Label(win, text=str(Diffusers)).grid(column=8*Diffusers-1, row=0)
-## ExternalFrame.grid(row=j, column=0, columnspan=8, sticky="nsew")
-## DiffusersScrollCanvas.grid(row=0, column=0, sticky="nsew")
-## DiffusersScrollCanvas.create_window(0, 0, window=DiffusersScrollFrame, anchor='nw')
-## DiffusersScrollbar = Scrollbar(ExternalFrame, orient=HORIZONTAL)
-## DiffusersScrollbar.config(command=DiffusersScrollCanvas.yview)
-## DiffusersScrollCanvas.config(yscrollcommand=DiffusersScrollbar.set)
-## DiffusersScrollbar.grid(row=0, column=1, sticky="ew")
-## DiffusersScrollCanvas.configure(scrollregion=DiffusersScrollCanvas.bbox('all'))
+## DiffusersScrollFrame.grid(row=k, column=0, columnspan=GridSpacing*Diffusers, rowspan=Drows, sticky="NWES")
+DiffusersScrollCanvas.create_window(0, 0, window=DiffusersScrollFrame, anchor='nw')
+DiffusersScrollCanvas.grid(row=0, column=0, sticky="nsew")
+DiffusersScrollbar = Scrollbar(ExternalFrame, orient=HORIZONTAL)
+DiffusersScrollbar.config(command=DiffusersScrollCanvas.xview)
+DiffusersScrollCanvas.config(xscrollcommand=DiffusersScrollbar.set)
+DiffusersScrollCanvas.configure(scrollregion=DiffusersScrollCanvas.bbox('all'))
+DiffusersScrollFrame.bind("<Configure>", update_scrollregion)
+DiffusersScrollbar.grid(row=1, column=0, sticky="ew")
+DiffusersScrollFrame.grid(row=0, column=0, sticky="NWES")
+CheckboxesFrame.grid(row=k, column=0, columnspan=8, sticky="NW")
+ExternalFrame.grid(row=k+1, column=0, columnspan=8, rowspan=Drows, sticky="NW")
+l=Label(win, text=str(Diffusers)).grid(column=GridSpacing*Diffusers-1, row=0)
+
 # plot the file
 def plot(option,figure):
     global plot_clicked
