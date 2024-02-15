@@ -91,20 +91,25 @@ variables_read_only.append("PresRelief_D1")
 variables_read_only.append("PresOffset_D1")
 
 rows = len(variables_read_write)+len(variables_read_only)
-Drows = 0
+Drowsrw = 0
+Drowsro = 0
+dvars = list()
 for i in range(len(variables_read_write)):
     if(variables_read_write[i].endswith('_D1')):
-        Drows = Drows + 1
+        Drowsrw = Drowsrw + 1
+        dvars.append(i)
         for j in range(Diffusers - 1):
             variables_read_write.append(variables_read_write[i].replace('_D1', '_D' + str(j+2)))
 
 for i in range(len(variables_read_only)):
     if(variables_read_only[i].endswith('_D1')):
+        Drowsro = Drowsro + 1
+        dvars.append(len(variables_read_write)+i)
         for j in range(Diffusers - 1):
             variables_read_only.append(variables_read_only[i].replace('_D1', '_D' + str(j+2)))
 
 variables = variables_read_write+variables_read_only
-
+Drows = Drowsrw + Drowsro
 values_write = [0 for i in range(len(variables_read_write))]  # initialise the corresponding values for writing out
 values_read = [66666 for i in range(len(variables))]  # initialise the corresponding values for reading in
 
@@ -210,31 +215,37 @@ for i in range(Drows):
     DiffusersScrollFrame.grid_rowconfigure(i, weight=1)
 def toggle_entry():
     for i in range(Diffusers):
-        for k in range(Drows):
-            if(checked[i].get() == 0):
-                labels_text[Drows*i+k].grid_remove()
-                labels_read[Drows*i+k].grid_remove()
-                if k < len(variables_read_write):  # widget only for writing the holding registers from index 0-3
-                    entries[Drows*i+k].grid_remove()
-                    buttons_write[Drows*i+k].grid_remove()
-                buttons_log[Drows*i+k].grid_remove()
-                buttons_stop_log[Drows*i+k].grid_remove()
-                scales_plot[Drows*i+k].grid_remove()
-                buttons_plot[Drows*i+k].grid_remove()
-            if(checked[i].get() == 1):
-                labels_text[Drows*i+k].grid()
-                labels_read[Drows*i+k].grid()
-                if k < len(variables_read_write):  # widget only for writing the holding registers from index 0-3
-                    entries[Drows*i+k].grid()
-                    buttons_write[Drows*i+k].grid()
-                buttons_log[Drows*i+k].grid()
-                buttons_stop_log[Drows*i+k].grid()
-                scales_plot[Drows*i+k].grid()
-                buttons_plot[Drows*i+k].grid()
+        if(checked[i].get() == 0):
+            for k in range(Drows):
+                l = (dvars[k] if i==0 else k*(Diffusers-1)+i+dvars[Drowsrw-1])
+                m = l if k < Drowsrw else (dvars[k] if i==0 else (k-Drowsrw)*(Diffusers-1)+i+dvars[Drows-1])
+                # print("i: "+str(i)+", k: "+str(k)+", l: "+str(l)+", m: "+str(m)+", Drowsrw: "+str(Drowsrw)+", Drows: "+str(Drows)+", len(dvars): "+str(len(dvars))+", dvars: "+str(dvars)+" .")
+                labels_text[m].grid_remove()
+                labels_read[m].grid_remove()
+                if k < Drowsrw:  # widget only for writing the holding registers from index 0-3
+                    entries[l].grid_remove()
+                    buttons_write[l].grid_remove()
+                buttons_log[m].grid_remove()
+                buttons_stop_log[m].grid_remove()
+                scales_plot[m].grid_remove()
+                buttons_plot[m].grid_remove()
+        if(checked[i].get() == 1):
+            for k in range(Drows):
+                l = (dvars[k] if i==0 else k*(Diffusers-1)+i+dvars[Drowsrw-1])
+                m = l if k < Drowsrw else (dvars[k] if i==0 else (k-Drowsrw)*(Diffusers-1)+i+dvars[Drows-1])
+                labels_text[m].grid()
+                labels_read[m].grid()
+                if k < Drowsrw:  # widget only for writing the holding registers from index 0-3
+                    entries[l].grid()
+                    buttons_write[l].grid()
+                buttons_log[m].grid()
+                buttons_stop_log[m].grid()
+                scales_plot[m].grid()
+                buttons_plot[m].grid()
             # DiffusersScrollFrame.grid_columnconfigure(GridSpacing*i+j, weight=checked[i].get())
 for i in range(Diffusers):
     # checked[i]=Variable()
-    checkboxes.append(Checkbutton(CheckboxesFrame, variable = checked[i], command=toggle_entry, onvalue = 1, offvalue = 0, height=5, width = 20, ))
+    checkboxes.append(Checkbutton(CheckboxesFrame, text=str(i+1), variable = checked[i], command=toggle_entry, onvalue = 1, offvalue = 0, height=5, width = 20, ))
     checkboxes[i].grid(row=0, column=i)
 # ExternalFrame.grid_rowconfigure(0, weight=9)
 # ExternalFrame.grid_rowconfigure(1, weight=1)
