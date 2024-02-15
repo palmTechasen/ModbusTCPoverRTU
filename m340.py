@@ -14,6 +14,8 @@ from matplotlib.figure import Figure
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationToolbar2Tk)
 from pyModbusTCP import utils
+from math import floor
+import numpy as np
 import os.path
 
 sem = threading.Semaphore(1)
@@ -89,6 +91,10 @@ variables_read_only.append("Airflow_D1")
 variables_read_only.append("T_CO2_D1")
 variables_read_only.append("PresRelief_D1")
 variables_read_only.append("PresOffset_D1")
+variables_read_only.append("DTOffset_D1")
+variables_read_only.append("Error_D1")
+variables_read_only.append("Modbus_D1")
+variables_read_only.append("ZCS_D1")
 
 rows = len(variables_read_write)+len(variables_read_only)
 Drowsrw = 0
@@ -141,7 +147,8 @@ register_addr_type = {"FCU Mode": [219, 'INT', "M340"], "FCU Fan Speed": [213, '
                       "Room_T_D1": [9099, 'INT', "M172", 0.1], "Supply_T_D1": [9100, 'INT', "M172", 0.1],"Pressure_D1": [9101, 'INT', "M172", 0.1], "CO2_D1": [9102,'INT', "M172", 0.1],
                       "Position_D1": [9104,'INT', "M172", 1.0], "Airflow_D1": [9107, 'INT', "M172", 0.1],
                       "T_SP_D1": [9123, 'INT', "M172", 0.1], "T_db_D1": [9124, 'INT', "M172", 0.1], 
-                      "T_CO2_D1": [9193, 'INT', "M172", 0.1], "PresRelief_D1": [9128, 'INT', "M172", 0.001], "PresOffset_D1": [9113, 'INT', "M172", 0.1]}
+                      "T_CO2_D1": [9193, 'INT', "M172", 0.1], "PresRelief_D1": [9128, 'INT', "M172", 0.001], "PresOffset_D1": [9113, 'INT', "M172", 0.1], "DTOffset_D1": [9112, 'INT', "M172", 0.1],
+                      "Error_D1": [9106, 'INT', "M172", 1.0], "Modbus_D1": [9180, 'INT', "M172", 1.0], "ZCS_D1": [9189, 'INT', "M172", 1.0]}
 
 for i in list(register_addr_type.keys()):
     if(i.endswith('_D1')):
@@ -331,7 +338,9 @@ def plot(option,figure):
 
     # plotting the graph
     plt.figure(figure)
-    plt.plot(time_series, value_series, lw=0, marker='o', label=filename)
+    print(time_series)
+    print(np.array(time_series, dtype='datetime64[ms]'))
+    plt.plot(np.array(time_series, dtype='datetime64[ms]'), value_series, lw=0, marker='o', label=filename)
     plt.legend()
     plt.show()
 
@@ -378,7 +387,7 @@ def log_deselect(option):
 def write_select(option):
     global write_clicked
     write_clicked = True  # a button clicked
-    values_write[int(option)] = float(entry[option].get())
+    values_write[int(option)] = float(entry[option].get())/(register_addr_type[labels_text[option]['text']][3]) if addresses[register_addr_type[labels_text[option]['text']][2]][2] == False else float(entry[option].get()) ## OOO
 
 
 # write and read data in a while-true loop
@@ -402,6 +411,9 @@ def write_registers():
 
         # select to write out as float or int
         if register_addr_type[variables_read_write[i]][1].upper() == 'INT':
+            print(str(int(values_write[i])))
+            print(variables_read_write[i])
+            print(dvars[floor((i-1-dvars[Drowsrw-1])/(Diffusers-1))] if i > dvars[Drowsrw-1] else i)
             connections[register_addr_type[variables[i]][2]].write_multiple_registers(register_addr_type[variables_read_write[i]][0], [int(values_write[i])])
         elif register_addr_type[variables_read_write[i]][1].upper() == 'FLOAT':
             connections[register_addr_type[variables[i]][2]].write_float(register_addr_type[variables_read_write[i]][0], [float(values_write[i])])
