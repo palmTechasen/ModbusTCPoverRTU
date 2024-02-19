@@ -73,6 +73,8 @@ variables_read_write.append("Main Lab Right Damper")
 variables_read_write.append("FCU Fan State")
 variables_read_write.append("T_SP_D1")
 variables_read_write.append("T_db_D1")
+variables_read_write.append("GSAS_D1")
+variables_read_write.append("PIRtimeout_D1")
 
 variables_read_only = list()
 variables_read_only.append("Temp1")
@@ -86,15 +88,21 @@ variables_read_only.append("Room_T_D1")
 variables_read_only.append("Supply_T_D1")
 variables_read_only.append("Pressure_D1")
 variables_read_only.append("CO2_D1")
+variables_read_only.append("PIR_D1")
 variables_read_only.append("Position_D1")
+variables_read_only.append("Humidity_D1")
+variables_read_only.append("Error_D1")
 variables_read_only.append("Airflow_D1")
 variables_read_only.append("T_CO2_D1")
 variables_read_only.append("PresRelief_D1")
-variables_read_only.append("PresOffset_D1")
 variables_read_only.append("DTOffset_D1")
-variables_read_only.append("Error_D1")
+variables_read_only.append("PresOffset_D1")
+variables_read_only.append("WFC_D1")
+variables_read_only.append("HCV_D1")
 variables_read_only.append("Modbus_D1")
 variables_read_only.append("ZCS_D1")
+variables_read_only.append("ZPS_D1")
+variables_read_only.append("AFT_D1")
 
 rows = len(variables_read_write)+len(variables_read_only)
 Drowsrw = 0
@@ -145,10 +153,11 @@ register_addr_type = {"FCU Mode": [219, 'INT', "M340"], "FCU Fan Speed": [213, '
                       "Main Lab Right Damper": [221, 'INT', "M340"], "FCU Fan State": [215, 'INT', "M340"],"Temp1": [338, 'FLOAT', "M340"], "Temp3": [332, 'FLOAT', "M340"],
                       "FCU_supply_temp_PV": [320, 'FLOAT', "M340"], 
                       "Room_T_D1": [9099, 'INT', "M172", 0.1], "Supply_T_D1": [9100, 'INT', "M172", 0.1],"Pressure_D1": [9101, 'INT', "M172", 0.1], "CO2_D1": [9102,'INT', "M172", 0.1],
-                      "Position_D1": [9104,'INT', "M172", 1.0], "Airflow_D1": [9107, 'INT', "M172", 0.1],
+                      "PIR_D1": [9103, 'INT', "M172", 1.0], "Position_D1": [9104,'INT', "M172", 1.0], "Humidity_D1": [9105, 'INT', "M172", 1.0], "Error_D1": [9106, 'INT', "M172", 1.0], "Airflow_D1": [9107, 'INT', "M172", 0.1],
+                      "DTOffset_D1": [9112, 'INT', "M172", 0.1], "PresOffset_D1": [9113, 'INT', "M172", 0.1], "WFC_D1": [9114, 'INT', "M172", 0.01], "HCV_D1": [9115, 'INT', "M172", 0.01],
                       "T_SP_D1": [9123, 'INT', "M172", 0.1], "T_db_D1": [9124, 'INT', "M172", 0.1], 
-                      "T_CO2_D1": [9193, 'INT', "M172", 0.1], "PresRelief_D1": [9128, 'INT', "M172", 0.001], "PresOffset_D1": [9113, 'INT', "M172", 0.1], "DTOffset_D1": [9112, 'INT', "M172", 0.1],
-                      "Error_D1": [9106, 'INT', "M172", 1.0], "Modbus_D1": [9180, 'INT', "M172", 1.0], "ZCS_D1": [9189, 'INT', "M172", 1.0]}
+                      "T_CO2_D1": [9193, 'INT', "M172", 0.1], "PresRelief_D1": [9128, 'INT', "M172", 0.001], "GSAS_D1": [9129, 'INT', "M172", 1.0], "AFT_D1": [9130, 'INT', "M172", 0.1], "PIRtimeout_D1": [9150, 'INT', "M172", 1.0],
+                      "Modbus_D1": [9180, 'INT', "M172", 1.0], "ZCS_D1": [9189, 'INT', "M172", 1.0], "ZPS_D1": [9142, 'INT', "M172", 1.0]}
 
 for i in list(register_addr_type.keys()):
     if(i.endswith('_D1')):
@@ -338,8 +347,8 @@ def plot(option,figure):
 
     # plotting the graph
     plt.figure(figure)
-    print(time_series)
-    print(np.array(time_series, dtype='datetime64[ms]'))
+    # print(time_series)
+    # print(np.array(time_series, dtype='datetime64[ms]'))
     plt.plot(np.array(time_series, dtype='datetime64[ms]'), value_series, lw=0, marker='o', label=filename)
     plt.legend()
     plt.show()
@@ -387,6 +396,12 @@ def log_deselect(option):
 def write_select(option):
     global write_clicked
     write_clicked = True  # a button clicked
+    print(entry[option].get())
+    print(str(entry[option].get()))
+    print(str(float(entry[option].get())))
+    print(register_addr_type[labels_text[option]['text']][3])
+    print(1.0/register_addr_type[labels_text[option]['text']][3])
+    print(1.0/float(register_addr_type[labels_text[option]['text']][3]))
     values_write[int(option)] = float(entry[option].get())/(register_addr_type[labels_text[option]['text']][3]) if addresses[register_addr_type[labels_text[option]['text']][2]][2] == False else float(entry[option].get()) ## OOO
 
 
@@ -435,13 +450,16 @@ def read_registers():
             temp = utils.get_2comp(connections[register_addr_type[variables[i]][2]].read_holding_registers(register_addr_type[variables[i]][0], 1)[0], 16)
         elif register_addr_type[variables[i]][1].upper() == 'FLOAT':
             temp = connections[register_addr_type[variables[i]][2]].read_float(register_addr_type[variables[i]][0], 1)[0]
-
         if addresses[register_addr_type[variables[i]][2]][2] == False:
+            # print(str(temp)+"*"+str(register_addr_type[variables[i]][3]))
             temp = temp * register_addr_type[variables[i]][3]
         else:
             temp = temp
 
         labels_read[i].config(text=round(temp, 1))
+        if i<len(variables_read_write) and write_clicked == False:
+            entry[i].set(str(temp))
+            values_write[i] = temp
 
         if b_log_clicked[i] and (values_read[i] == 66666 or values_read[i] != temp) and (temp != 0 or values_read[i] != 0):
             log(b_filename[i], time, str(temp))
