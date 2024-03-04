@@ -14,7 +14,7 @@ from matplotlib.figure import Figure
 from matplotlib import pyplot as plt
 from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg, NavigationToolbar2Tk)
 from pyModbusTCP import utils
-from math import floor
+from math import floor, ceil, log10
 import numpy as np
 import os.path
 
@@ -32,6 +32,7 @@ devices = list()
 devices.append("M340")
 devices.append("M172")
 
+NonDiffColumns = 4
 Diffusers = 3
 DiffuserSpacing = 200
 GridSpacing = 9
@@ -41,7 +42,18 @@ DiffuserEnds = []
 def update_scrollregion(event):
     DiffusersScrollCanvas.configure(scrollregion=DiffusersScrollCanvas.bbox("all"))
 
+# select what data to be logged
+def log_select(option):
+    b_log_clicked[option] = True
+    buttons_log[option].config(state=DISABLED)
+    buttons_stop_log[option].config(state=NORMAL)
 
+
+# de-select the logged data
+def log_deselect(option):
+    b_log_clicked[option] = False
+    buttons_log[option].config(state=NORMAL)
+    buttons_stop_log[option].config(state=DISABLED)
 
 for i in range(Diffusers):
     DiffuserEnds.append('_D'+str(i+1))
@@ -80,8 +92,8 @@ variables_read_only = list()
 variables_read_only.append("Temp1")
 variables_read_only.append("Temp3")
 variables_read_only.append("FCU_supply_temp_PV")
-# variables_read_only.append("DesignAirflow_D3")
-# variables_read_only.append("RawReads[3,11]")
+variables_read_only.append("PAC Fan Speed")
+variables_read_only.append("PAC Comp Load")
 # variables_read_only.append("R3_Perf_CO2")
 # variables_read_only.append("R3_Bel_Temp")
 variables_read_only.append("Room_T_D1")
@@ -91,18 +103,27 @@ variables_read_only.append("CO2_D1")
 variables_read_only.append("PIR_D1")
 variables_read_only.append("Position_D1")
 variables_read_only.append("Humidity_D1")
-variables_read_only.append("Error_D1")
+# variables_read_only.append("Error_D1")
 variables_read_only.append("Airflow_D1")
 variables_read_only.append("T_CO2_D1")
 variables_read_only.append("PresRelief_D1")
 variables_read_only.append("DTOffset_D1")
+variables_read_only.append("reqDT_D1")
+variables_read_only.append("Pmulti_D1")
+variables_read_only.append("curDT_D1")
+variables_read_only.append("WTC_D1")
 variables_read_only.append("PresOffset_D1")
 variables_read_only.append("WFC_D1")
 variables_read_only.append("HCV_D1")
-variables_read_only.append("Modbus_D1")
+# variables_read_only.append("Modbus_D1")
 variables_read_only.append("ZCS_D1")
-variables_read_only.append("ZPS_D1")
+# variables_read_only.append("ZPS_D1")
 variables_read_only.append("AFT_D1")
+variables_read_only.append("GF_D1")
+variables_read_only.append("PI_CV_D1")
+variables_read_only.append("RmTempShort_D1")
+variables_read_only.append("RmTempLong_D1")
+variables_read_only.append("RmTempShortSelected_D1")
 
 rows = len(variables_read_write)+len(variables_read_only)
 Drowsrw = 0
@@ -113,14 +134,14 @@ for i in range(len(variables_read_write)):
         Drowsrw = Drowsrw + 1
         dvars.append(i)
         for j in range(Diffusers - 1):
-            variables_read_write.append(variables_read_write[i].replace('_D1', '_D' + str(j+2)))
+            variables_read_write.append(variables_read_write[i].replace('_D1', DiffuserEnds[j+1]))
 
 for i in range(len(variables_read_only)):
     if(variables_read_only[i].endswith('_D1')):
         Drowsro = Drowsro + 1
         dvars.append(len(variables_read_write)+i)
         for j in range(Diffusers - 1):
-            variables_read_only.append(variables_read_only[i].replace('_D1', '_D' + str(j+2)))
+            variables_read_only.append(variables_read_only[i].replace('_D1', DiffuserEnds[j+1]))
 
 variables = variables_read_write+variables_read_only
 Drows = Drowsrw + Drowsro
@@ -149,29 +170,30 @@ values_read = [66666 for i in range(len(variables))]  # initialise the correspon
 #                       "Room_T_D1": [9099, 'INT', "M172", 0.1],"Room_T_D2": [9299, 'INT', "M172", 0.1], "PresRelief_D1": [9128, 'INT', "M172", 0.001], "PresOffset_D1": [9113, 'INT', "M172", 0.1],
 #                       "PresRelief_D2": [9328, 'INT', "M172", 0.001], "PresOffset_D2": [9313, 'INT', "M172", 0.1],"PresRelief_D3": [9528, 'INT', "M172", 0.001], "PresOffset_D3": [9513, 'INT', "M172", 0.1]}
 
-register_addr_type = {"FCU Mode": [219, 'INT', "M340"], "FCU Fan Speed": [213, 'INT', "M340"], "FCU Temperature SP": [370, 'FLOAT', "M340"],
+register_addr_type = {"FCU Mode": [219, 'INT', "M340"], "FCU Fan Speed": [213, 'INT', "M340"], "PAC Fan Speed": [203, 'INT', "M340"], "PAC Comp Load": [200, 'INT', "M340"], "FCU Temperature SP": [370, 'FLOAT', "M340"],
                       "Main Lab Right Damper": [221, 'INT', "M340"], "FCU Fan State": [215, 'INT', "M340"],"Temp1": [338, 'FLOAT', "M340"], "Temp3": [332, 'FLOAT', "M340"],
                       "FCU_supply_temp_PV": [320, 'FLOAT', "M340"], 
                       "Room_T_D1": [9099, 'INT', "M172", 0.1], "Supply_T_D1": [9100, 'INT', "M172", 0.1],"Pressure_D1": [9101, 'INT', "M172", 0.1], "CO2_D1": [9102,'INT', "M172", 0.1],
                       "PIR_D1": [9103, 'INT', "M172", 1.0], "Position_D1": [9104,'INT', "M172", 1.0], "Humidity_D1": [9105, 'INT', "M172", 1.0], "Error_D1": [9106, 'INT', "M172", 1.0], "Airflow_D1": [9107, 'INT', "M172", 0.1],
-                      "DTOffset_D1": [9112, 'INT', "M172", 0.1], "PresOffset_D1": [9113, 'INT', "M172", 0.1], "WFC_D1": [9114, 'INT', "M172", 0.01], "HCV_D1": [9115, 'INT', "M172", 0.01],
-                      "T_SP_D1": [9123, 'INT', "M172", 0.1], "T_db_D1": [9124, 'INT', "M172", 0.1], 
-                      "T_CO2_D1": [9193, 'INT', "M172", 0.1], "PresRelief_D1": [9128, 'INT', "M172", 0.001], "GSAS_D1": [9129, 'INT', "M172", 1.0], "AFT_D1": [9130, 'INT', "M172", 0.1], "PIRtimeout_D1": [9150, 'INT', "M172", 1.0],
-                      "Modbus_D1": [9180, 'INT', "M172", 1.0], "ZCS_D1": [9189, 'INT', "M172", 1.0], "ZPS_D1": [9142, 'INT', "M172", 1.0]}
+                      "DTOffset_D1": [9112, 'INT', "M172", 0.1], "PresOffset_D1": [9113, 'INT', "M172", 0.1], "WFC_D1": [9114, 'INT', "M172", 0.01], "HCV_D1": [9115, 'INT', "M172", 1.0],
+                      "reqDT_D1": [9116, 'INT', "M172", 0.1], "Pmulti_D1": [9117, 'INT', "M172", 0.001], "curDT_D1": [9118, 'INT', "M172", 0.1], "WTC_D1": [9159, 'INT', "M172", 0.01],
+                      "T_SP_D1": [9123, 'INT', "M172", 0.1], "T_db_D1": [9124, 'INT', "M172", 0.1], "RmTempShort_D1": [9252, 'INT', "M172", 0.1], "RmTempLong_D1": [9251, 'INT', "M172", 0.1], "RmTempShortSelected_D1": [9253, 'INT', "M172", 1.0],
+                      "T_CO2_D1": [9193, 'INT', "M172", 0.1], "PresRelief_D1": [9128, 'INT', "M172", 0.001], "GSAS_D1": [9129, 'INT', "M172", 1.0], "AFT_D1": [9130, 'INT', "M172", 0.1], "GF_D1": [9131, 'INT', "M172", 0.001], "PIRtimeout_D1": [9150, 'INT', "M172", 1.0],
+                      "Modbus_D1": [9180, 'INT', "M172", 1.0], "PI_CV_D1": [9181, 'INT', "M172", 0.0001], "ZCS_D1": [9189, 'INT', "M172", 1.0], "ZPS_D1": [9142, 'INT', "M172", 1.0]}
 
 for i in list(register_addr_type.keys()):
     if(i.endswith('_D1')):
         for j in range(Diffusers - 1):
             if addresses[register_addr_type[i][2]][2] == False:
-                register_addr_type.update({i.replace('_D1', '_D' + str(j+2)): [register_addr_type[i][0]+DiffuserSpacing*(j+1), register_addr_type[i][1], register_addr_type[i][2], register_addr_type[i][3]]})
+                register_addr_type.update({i.replace('_D1', DiffuserEnds[j+1]): [register_addr_type[i][0]+DiffuserSpacing*(j+1), register_addr_type[i][1], register_addr_type[i][2], register_addr_type[i][3]]})
             else:
-                register_addr_type.update({i.replace('_D1', '_D' + str(j+2)): [register_addr_type[i][0]+DiffuserSpacing*(j+1), register_addr_type[i][1], register_addr_type[i][2]]})
+                register_addr_type.update({i.replace('_D1', DiffuserEnds[j+1]): [register_addr_type[i][0]+DiffuserSpacing*(j+1), register_addr_type[i][1], register_addr_type[i][2]]})
 
 # write value to the plc only once per click
 write_clicked = False
 
 # can be logged multiple at a time
-b_log_clicked = [False for i in range(len(variables))]
+b_log_clicked = [True for i in range(len(variables))]
 b_filename = [variables[i]+".csv" for i in range(len(variables))]
 
 # plot from the file once per click
@@ -216,12 +238,14 @@ for i in range(len(variables)):
 
     buttons_log.append(Button(root, text="log", command=lambda k=i: log_select(k)))
     buttons_stop_log.append(Button(root, text="stop", command=lambda k=i: log_deselect(k), state=DISABLED))
+    if b_log_clicked[i]:
+        buttons_log[i].invoke()
     scales_plot.append(TickScale(root, from_=0, to=len(variables)-1, orient=HORIZONTAL, length=50, resolution=1, showvalue=True, labelpos="e")) 
     buttons_plot.append(Button(root, text="plot", command=lambda k=i: plot(k,scales_plot[k].get())))
 
 j = 0
 columnextra = 0
-for i in range(GridSpacing):
+for i in range(GridSpacing*NonDiffColumns):
     win.grid_columnconfigure(i, weight=1)
 for i in range(rows+1):
     win.grid_rowconfigure(i, weight=1)
@@ -269,6 +293,7 @@ for i in range(Diffusers):
 # The first four are read-write registers and the last three are read-only registers
 k = 0
 rowD = 0
+rowND = 0
 rowsDict = {}
 for i in range(len(variables)):
     if(variables[i].endswith(DiffuserEndsTuple)):
@@ -290,16 +315,17 @@ for i in range(len(variables)):
             rowsDict.update({variables[i]: j})
             j = j+1
     else:
-        columnextra = 0
-        labels_text[i].grid(row=k, column=(0 + columnextra), sticky="NWES")
-        labels_read[i].grid(row=k, column=(1 + columnextra), sticky="NWES")
+        columnextra = (k % NonDiffColumns)*GridSpacing
+        rowND = floor(k/NonDiffColumns)
+        labels_text[i].grid(row=rowND, column=(0 + columnextra), sticky="NWES")
+        labels_read[i].grid(row=rowND, column=(1 + columnextra), sticky="NWES")
         if i < len(variables_read_write):  # widget only for writing the holding registers from index 0-3
-            entries[i].grid(row=k, column=(2 + columnextra), sticky="NWES")
-            buttons_write[i].grid(row=k, column=(3 + columnextra), sticky="NWES")
-        buttons_log[i].grid(row=k, column=(4 + columnextra), sticky="NWES")
-        buttons_stop_log[i].grid(row=k, column=(5 + columnextra), sticky="NWES")
-        scales_plot[i].grid(row=k, column=(6 + columnextra), sticky="NWES")
-        buttons_plot[i].grid(row=k, column=(7 + columnextra), sticky="NWES")
+            entries[i].grid(row=rowND, column=(2 + columnextra), sticky="NWES")
+            buttons_write[i].grid(row=rowND, column=(3 + columnextra), sticky="NWES")
+        buttons_log[i].grid(row=rowND, column=(4 + columnextra), sticky="NWES")
+        buttons_stop_log[i].grid(row=rowND, column=(5 + columnextra), sticky="NWES")
+        scales_plot[i].grid(row=rowND, column=(6 + columnextra), sticky="NWES")
+        buttons_plot[i].grid(row=rowND, column=(7 + columnextra), sticky="NWES")
         k = k+1
 ## DiffusersScrollFrame.grid(row=k, column=0, columnspan=GridSpacing*Diffusers, rowspan=Drows, sticky="NWES")
 DiffusersScrollCanvas.create_window(0, 0, window=DiffusersScrollFrame, anchor='nw')
@@ -311,9 +337,13 @@ DiffusersScrollCanvas.configure(scrollregion=DiffusersScrollCanvas.bbox('all'))
 DiffusersScrollFrame.bind("<Configure>", update_scrollregion)
 DiffusersScrollbar.grid(row=1, column=0, sticky="ew")
 DiffusersScrollFrame.grid(row=0, column=0, sticky="NWES")
-CheckboxesFrame.grid(row=k, column=0, columnspan=8, sticky="NW")
-ExternalFrame.grid(row=k+1, column=0, columnspan=8, rowspan=Drows, sticky="NW")
-l=Label(win, text=str(Diffusers)).grid(column=GridSpacing*Diffusers-1, row=0)
+CheckboxesFrame.grid(row=rowND+1, column=0, columnspan=GridSpacing*NonDiffColumns+1, sticky="NW")
+ExternalFrame.grid(row=rowND+2, column=0, columnspan=GridSpacing*NonDiffColumns+1, rowspan=Drows, sticky="NWES")
+l=Label(win, text=str(Diffusers)).grid(column=GridSpacing*NonDiffColumns, row=0)
+def stop_logging():
+    for i in range(len(variables)):
+        log_deselect(i)
+l=Button(win, text="stop L", command=stop_logging).grid(column=GridSpacing*NonDiffColumns, row=1)
 
 # plot the file
 def plot(option,figure):
@@ -359,38 +389,23 @@ def log(filename, *data):
     file_exist = os.path.isfile(filepath) # check if the file already exist before opening
 
     # open the file and write the header if not previously exist
-    f = open(filename, 'a')
-    if not file_exist:
-        f.write("Time"+","+filename.split('.')[0])  # print the header row using Time and header without .csv or .txt
-        f.write("\n")
+    with open(filename, 'a') as f:
+        if not file_exist:
+            f.write("Time", ",", filename.split('.')[0], "\n")  # print the header row using Time and header without .csv or .txt
 
-    # replace with a list as the index is needed to determine if the comma will be printed
-    l_data = list(data)
-    length = len(l_data)
+        # replace with a list as the index is needed to determine if the comma will be printed
+        l_data = list(data)
+        length = len(l_data)
+        linestring = []
 
-    for i in range(length):
-        f.write(str(l_data[i]))
+        for i in range(length):
+            linestring.append(str(l_data[i]))
+            if i < length-1:
+                linestring.append(',')
 
-        if i < length-1:
-            f.write(',')
-
-    f.write("\n")
-    f.close()
-
-
-# select what data to be logged
-def log_select(option):
-    b_log_clicked[option] = True
-    buttons_log[option].config(state=DISABLED)
-    buttons_stop_log[option].config(state=NORMAL)
-
-
-# de-select the logged data
-def log_deselect(option):
-    b_log_clicked[option] = False
-    buttons_log[option].config(state=NORMAL)
-    buttons_stop_log[option].config(state=DISABLED)
-
+        linestring.append("\n")
+        f.write(''.join(linestring))
+        # f.close() # 'With'-construct will close the file either way, whatever happens
 
 # select which data to be written
 def write_select(option):
@@ -423,15 +438,16 @@ def write_registers():
     sem.acquire()  # To ensure the connection is being used by only read or write
 
     for i in range(len(variables_read_write)):
+        if buttons_write[i]['state'] == DISABLED:
 
-        # select to write out as float or int
-        if register_addr_type[variables_read_write[i]][1].upper() == 'INT':
-            print(str(int(values_write[i])))
-            print(variables_read_write[i])
-            print(dvars[floor((i-1-dvars[Drowsrw-1])/(Diffusers-1))] if i > dvars[Drowsrw-1] else i)
-            connections[register_addr_type[variables[i]][2]].write_multiple_registers(register_addr_type[variables_read_write[i]][0], [int(values_write[i])])
-        elif register_addr_type[variables_read_write[i]][1].upper() == 'FLOAT':
-            connections[register_addr_type[variables[i]][2]].write_float(register_addr_type[variables_read_write[i]][0], [float(values_write[i])])
+            # select to write out as float or int
+            if register_addr_type[variables_read_write[i]][1].upper() == 'INT':
+                print(str(int(values_write[i])))
+                print(variables_read_write[i])
+                print(dvars[floor((i-1-dvars[Drowsrw-1])/(Diffusers-1))] if i > dvars[Drowsrw-1] else i)
+                connections[register_addr_type[variables[i]][2]].write_multiple_registers(register_addr_type[variables_read_write[i]][0], [int(values_write[i])])
+            elif register_addr_type[variables_read_write[i]][1].upper() == 'FLOAT':
+                connections[register_addr_type[variables[i]][2]].write_float(register_addr_type[variables_read_write[i]][0], [float(values_write[i])])
 
     sem.release()
 
@@ -442,24 +458,28 @@ def read_registers():
     sem.acquire() # To ensure the connection is being used by only read or write
 
     time = datetime.utcnow().isoformat(sep=' ', timespec='milliseconds')
+    res = 1
 
     # read the read-write registers to ensure the value is already set after a click, not overwritten by others
     for i in range(len(variables)):
+        res = 1
         # select to read as int or float
         if register_addr_type[variables[i]][1].upper() == 'INT':
             temp = utils.get_2comp(connections[register_addr_type[variables[i]][2]].read_holding_registers(register_addr_type[variables[i]][0], 1)[0], 16)
         elif register_addr_type[variables[i]][1].upper() == 'FLOAT':
             temp = connections[register_addr_type[variables[i]][2]].read_float(register_addr_type[variables[i]][0], 1)[0]
+        if i<len(variables_read_write) and write_clicked == False:
+            values_write[i] = temp
         if addresses[register_addr_type[variables[i]][2]][2] == False:
             # print(str(temp)+"*"+str(register_addr_type[variables[i]][3]))
             temp = temp * register_addr_type[variables[i]][3]
+            res = ceil(log10(1/register_addr_type[variables[i]][3]))
         else:
             temp = temp
 
-        labels_read[i].config(text=round(temp, 1))
+        labels_read[i].config(text=round(temp, res))
         if i<len(variables_read_write) and write_clicked == False:
             entry[i].set(str(temp))
-            values_write[i] = temp
 
         if b_log_clicked[i] and (values_read[i] == 66666 or values_read[i] != temp) and (temp != 0 or values_read[i] != 0):
             log(b_filename[i], time, str(temp))
