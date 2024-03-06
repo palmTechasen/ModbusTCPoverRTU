@@ -32,7 +32,7 @@ devices = list()
 devices.append("M340")
 devices.append("M172")
 
-NonDiffColumns = 4
+NonDiffColumns = 5
 Diffusers = 3
 DiffuserSpacing = 200
 GridSpacing = 9
@@ -243,6 +243,16 @@ for i in range(len(variables)):
     scales_plot.append(TickScale(root, from_=0, to=len(variables)-1, orient=HORIZONTAL, length=50, resolution=1, showvalue=True, labelpos="e")) 
     buttons_plot.append(Button(root, text="plot", command=lambda k=i: plot(k,scales_plot[k].get())))
 
+l=Label(win, text=str(Diffusers))
+def stop_logging():
+    for i in range(len(variables)):
+        log_deselect(i)
+def start_logging():
+    for i in range(len(variables)):
+        log_select(i)
+lp=Button(win, text="stop L", command=stop_logging)
+lt=Button(win, text="start L", command=start_logging)
+
 j = 0
 columnextra = 0
 for i in range(GridSpacing*NonDiffColumns):
@@ -339,11 +349,9 @@ DiffusersScrollbar.grid(row=1, column=0, sticky="ew")
 DiffusersScrollFrame.grid(row=0, column=0, sticky="NWES")
 CheckboxesFrame.grid(row=rowND+1, column=0, columnspan=GridSpacing*NonDiffColumns+1, sticky="NW")
 ExternalFrame.grid(row=rowND+2, column=0, columnspan=GridSpacing*NonDiffColumns+1, rowspan=Drows, sticky="NWES")
-l=Label(win, text=str(Diffusers)).grid(column=GridSpacing*NonDiffColumns, row=0)
-def stop_logging():
-    for i in range(len(variables)):
-        log_deselect(i)
-l=Button(win, text="stop L", command=stop_logging).grid(column=GridSpacing*NonDiffColumns, row=1)
+l.grid(column=GridSpacing*NonDiffColumns, row=0)
+lp.grid(column=GridSpacing*NonDiffColumns, row=1)
+lt.grid(column=GridSpacing*NonDiffColumns, row=2)
 
 # plot the file
 def plot(option,figure):
