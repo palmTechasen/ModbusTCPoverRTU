@@ -5,6 +5,7 @@
 # Then log in the data into the Excel file
 import threading
 from datetime import datetime
+from time import sleep
 from float_rw import FloatModbusClient
 from threading import *
 from tkinter import *
@@ -32,7 +33,7 @@ devices = list()
 devices.append("M340")
 devices.append("M172")
 
-NonDiffColumns = 5
+NonDiffColumns = 6
 Diffusers = 3
 DiffuserSpacing = 200
 GridSpacing = 9
@@ -111,7 +112,7 @@ variables_read_only.append("DTOffset_D1")
 variables_read_only.append("reqDT_D1")
 variables_read_only.append("Pmulti_D1")
 variables_read_only.append("curDT_D1")
-variables_read_only.append("WTC_D1")
+# variables_read_only.append("WTC_D1")
 variables_read_only.append("PresOffset_D1")
 variables_read_only.append("WFC_D1")
 variables_read_only.append("HCV_D1")
@@ -119,32 +120,40 @@ variables_read_only.append("HCV_D1")
 variables_read_only.append("ZCS_D1")
 # variables_read_only.append("ZPS_D1")
 variables_read_only.append("AFT_D1")
-variables_read_only.append("GF_D1")
+# variables_read_only.append("GF_D1")
 variables_read_only.append("PI_CV_D1")
 variables_read_only.append("RmTempShort_D1")
 variables_read_only.append("RmTempLong_D1")
 variables_read_only.append("RmTempShortSelected_D1")
+variables_read_only.append("HC_Req")
+variables_read_only.append("FAct_D1")
+variables_read_only.append("PAC Supply T")
 
 rows = len(variables_read_write)+len(variables_read_only)
 Drowsrw = 0
 Drowsro = 0
 dvars = list()
+for i in range(Diffusers):
+    dvars.append(list())
 for i in range(len(variables_read_write)):
     if(variables_read_write[i].endswith('_D1')):
         Drowsrw = Drowsrw + 1
-        dvars.append(i)
+        # dvars.append(i)
         for j in range(Diffusers - 1):
             variables_read_write.append(variables_read_write[i].replace('_D1', DiffuserEnds[j+1]))
 
 for i in range(len(variables_read_only)):
     if(variables_read_only[i].endswith('_D1')):
         Drowsro = Drowsro + 1
-        dvars.append(len(variables_read_write)+i)
+        # dvars.append(len(variables_read_write)+i)
         for j in range(Diffusers - 1):
             variables_read_only.append(variables_read_only[i].replace('_D1', DiffuserEnds[j+1]))
 
 variables = variables_read_write+variables_read_only
 Drows = Drowsrw + Drowsro
+for i in range(len(variables)):
+    if(variables[i].endswith(DiffuserEndsTuple)):
+        dvars[int(variables[i].rpartition('_D')[2])-1].append(i)
 values_write = [0 for i in range(len(variables_read_write))]  # initialise the corresponding values for writing out
 values_read = [66666 for i in range(len(variables))]  # initialise the corresponding values for reading in
 
@@ -170,7 +179,7 @@ values_read = [66666 for i in range(len(variables))]  # initialise the correspon
 #                       "Room_T_D1": [9099, 'INT', "M172", 0.1],"Room_T_D2": [9299, 'INT', "M172", 0.1], "PresRelief_D1": [9128, 'INT', "M172", 0.001], "PresOffset_D1": [9113, 'INT', "M172", 0.1],
 #                       "PresRelief_D2": [9328, 'INT', "M172", 0.001], "PresOffset_D2": [9313, 'INT', "M172", 0.1],"PresRelief_D3": [9528, 'INT', "M172", 0.001], "PresOffset_D3": [9513, 'INT', "M172", 0.1]}
 
-register_addr_type = {"FCU Mode": [219, 'INT', "M340"], "FCU Fan Speed": [213, 'INT', "M340"], "PAC Fan Speed": [203, 'INT', "M340"], "PAC Comp Load": [200, 'INT', "M340"], "FCU Temperature SP": [370, 'FLOAT', "M340"],
+register_addr_type = {"FCU Mode": [219, 'INT', "M340"], "FCU Fan Speed": [213, 'INT', "M340"], "PAC Fan Speed": [203, 'INT', "M340"], "PAC Comp Load": [200, 'INT', "M340"], "FCU Temperature SP": [370, 'FLOAT', "M340"], "PAC Supply T": [308, 'FLOAT', "M340"],
                       "Main Lab Right Damper": [221, 'INT', "M340"], "FCU Fan State": [215, 'INT', "M340"],"Temp1": [338, 'FLOAT', "M340"], "Temp3": [332, 'FLOAT', "M340"],
                       "FCU_supply_temp_PV": [320, 'FLOAT', "M340"], 
                       "Room_T_D1": [9099, 'INT', "M172", 0.1], "Supply_T_D1": [9100, 'INT', "M172", 0.1],"Pressure_D1": [9101, 'INT', "M172", 0.1], "CO2_D1": [9102,'INT', "M172", 0.1],
@@ -179,7 +188,8 @@ register_addr_type = {"FCU Mode": [219, 'INT', "M340"], "FCU Fan Speed": [213, '
                       "reqDT_D1": [9116, 'INT', "M172", 0.1], "Pmulti_D1": [9117, 'INT', "M172", 0.001], "curDT_D1": [9118, 'INT', "M172", 0.1], "WTC_D1": [9159, 'INT', "M172", 0.01],
                       "T_SP_D1": [9123, 'INT', "M172", 0.1], "T_db_D1": [9124, 'INT', "M172", 0.1], "RmTempShort_D1": [9252, 'INT', "M172", 0.1], "RmTempLong_D1": [9251, 'INT', "M172", 0.1], "RmTempShortSelected_D1": [9253, 'INT', "M172", 1.0],
                       "T_CO2_D1": [9193, 'INT', "M172", 0.1], "PresRelief_D1": [9128, 'INT', "M172", 0.001], "GSAS_D1": [9129, 'INT', "M172", 1.0], "AFT_D1": [9130, 'INT', "M172", 0.1], "GF_D1": [9131, 'INT', "M172", 0.001], "PIRtimeout_D1": [9150, 'INT', "M172", 1.0],
-                      "Modbus_D1": [9180, 'INT', "M172", 1.0], "PI_CV_D1": [9181, 'INT', "M172", 0.0001], "ZCS_D1": [9189, 'INT', "M172", 1.0], "ZPS_D1": [9142, 'INT', "M172", 1.0]}
+                      "Modbus_D1": [9180, 'INT', "M172", 1.0], "PI_CV_D1": [9181, 'INT', "M172", 0.0001], "ZCS_D1": [9189, 'INT', "M172", 1.0], "ZPS_D1": [9142, 'INT', "M172", 1.0], "HC_Req": [8982, 'INT', "M172", 1.0], "FAct_D1": [9249, 'INT', "M172", 1.0]
+}
 
 for i in list(register_addr_type.keys()):
     if(i.endswith('_D1')):
@@ -214,6 +224,7 @@ checkboxes = list()
 checked = []
 for i in range(Diffusers):
     checked.append(IntVar())
+    checked[i].set(1)
 for i in range(len(variables_read_write)):
     entry.append(StringVar())
 
@@ -233,7 +244,7 @@ for i in range(len(variables)):
     labels_read.append(Label(root, text=""))
 
     if i < len(variables_read_write):  # widget only for writing the holding registers from index 0-3
-        entries.append(Entry(root, textvariable=entry[i]))
+        entries.append(Entry(root, textvariable=entry[i], width=10))
         buttons_write.append(Button(root, text="write", command=lambda k=i: write_select(k)))
 
     buttons_log.append(Button(root, text="log", command=lambda k=i: log_select(k)))
@@ -267,9 +278,14 @@ def toggle_entry():
     for i in range(Diffusers):
         if(checked[i].get() == 0):
             for k in range(Drows):
-                l = (dvars[k] if i==0 else k*(Diffusers-1)+i+dvars[Drowsrw-1])
-                m = l if k < Drowsrw else (dvars[k] if i==0 else (k-Drowsrw)*(Diffusers-1)+i+dvars[Drows-1])
-                # print("i: "+str(i)+", k: "+str(k)+", l: "+str(l)+", m: "+str(m)+", Drowsrw: "+str(Drowsrw)+", Drows: "+str(Drows)+", len(dvars): "+str(len(dvars))+", dvars: "+str(dvars)+" .")
+                # l = (dvars[k] if i==0 else k*(Diffusers-1)+i+dvars[Drowsrw-1])
+                # m = l if k < Drowsrw else (dvars[k] if i==0 else (k-Drowsrw)*(Diffusers-1)+i+dvars[Drows-1])
+                # l = (dvars[k] if i==0 else dvars[Drowsrw-1+k*(Diffusers-1)+i])
+                # m = l if k < Drowsrw else (dvars[k] if i==0 else dvars[Drows-1+(k-Drowsrw)*(Diffusers-1)+i])
+                l = dvars[i][k]
+                m = l
+                # if i > 0:
+                #     print("i: ", str(i), ", k: ", str(k), ", l: ", str(l), ", m: ", str(m), ", Drowsrw: ", str(Drowsrw), ", Drows: ", str(Drows), ", len(dvars): ", str(len(dvars)), ", dvars: ", str(dvars), " .\n")
                 labels_text[m].grid_remove()
                 labels_read[m].grid_remove()
                 if k < Drowsrw:  # widget only for writing the holding registers from index 0-3
@@ -281,8 +297,12 @@ def toggle_entry():
                 buttons_plot[m].grid_remove()
         if(checked[i].get() == 1):
             for k in range(Drows):
-                l = (dvars[k] if i==0 else k*(Diffusers-1)+i+dvars[Drowsrw-1])
-                m = l if k < Drowsrw else (dvars[k] if i==0 else (k-Drowsrw)*(Diffusers-1)+i+dvars[Drows-1])
+                # l = (dvars[k] if i==0 else k*(Diffusers-1)+i+dvars[Drowsrw-1])
+                # m = l if k < Drowsrw else (dvars[k] if i==0 else (k-Drowsrw)*(Diffusers-1)+i+dvars[Drows-1])
+                # l = (dvars[k] if i==0 else dvars[Drowsrw-1+k*(Diffusers-1)+i])
+                # m = l if k < Drowsrw else (dvars[k] if i==0 else dvars[Drows-1+(k-Drowsrw)*(Diffusers-1)+i])
+                l = dvars[i][k]
+                m = l
                 labels_text[m].grid()
                 labels_read[m].grid()
                 if k < Drowsrw:  # widget only for writing the holding registers from index 0-3
@@ -294,7 +314,6 @@ def toggle_entry():
                 buttons_plot[m].grid()
             # DiffusersScrollFrame.grid_columnconfigure(GridSpacing*i+j, weight=checked[i].get())
 for i in range(Diffusers):
-    # checked[i]=Variable()
     checkboxes.append(Checkbutton(CheckboxesFrame, text=str(i+1), variable = checked[i], command=toggle_entry, onvalue = 1, offvalue = 0, height=5, width = 20, ))
     checkboxes[i].grid(row=0, column=i)
 # ExternalFrame.grid_rowconfigure(0, weight=9)
@@ -399,7 +418,7 @@ def log(filename, *data):
     # open the file and write the header if not previously exist
     with open(filename, 'a') as f:
         if not file_exist:
-            f.write("Time", ",", filename.split('.')[0], "\n")  # print the header row using Time and header without .csv or .txt
+            f.write("".join(["Time", ",", filename.split('.')[0], "\n"]))  # print the header row using Time and header without .csv or .txt
 
         # replace with a list as the index is needed to determine if the comma will be printed
         l_data = list(data)
@@ -460,6 +479,11 @@ def write_registers():
     sem.release()
 
 
+connectionproblems = list()
+
+for i in range(len(variables)):
+    connectionproblems.append(0)
+
 # read all the registers
 def read_registers():
 
@@ -471,6 +495,17 @@ def read_registers():
     # read the read-write registers to ensure the value is already set after a click, not overwritten by others
     for i in range(len(variables)):
         res = 1
+        if connections[register_addr_type[variables[i]][2]].is_open == False or connections[register_addr_type[variables[i]][2]].read_holding_registers(register_addr_type[variables[i]][0], 1) == None:
+            if connectionproblems[i] == 0:
+                labels_read[i].config(foreground="orange")
+            connectionproblems[i] = connectionproblems[i] + 1
+            connections[register_addr_type[variables[i]][2]].open()
+            sleep(0.01*connectionproblems[i])
+            continue
+        else:
+            if connectionproblems[i] > 0:
+                connectionproblems[i] = 0
+                labels_read[i].config(foreground="green")
         # select to read as int or float
         if register_addr_type[variables[i]][1].upper() == 'INT':
             temp = utils.get_2comp(connections[register_addr_type[variables[i]][2]].read_holding_registers(register_addr_type[variables[i]][0], 1)[0], 16)
@@ -485,14 +520,16 @@ def read_registers():
         else:
             temp = temp
 
-        labels_read[i].config(text=round(temp, res))
-        if i<len(variables_read_write) and write_clicked == False:
+        if (values_read[i] == 66666 or values_read[i] != temp):
+            labels_read[i].config(text=round(temp, res))
+        if i<len(variables_read_write) and write_clicked == False and (values_read[i] == 66666 or values_read[i] != temp):
             entry[i].set(str(temp))
 
         if b_log_clicked[i] and (values_read[i] == 66666 or values_read[i] != temp) and (temp != 0 or values_read[i] != 0):
             log(b_filename[i], time, str(temp))
 
-        values_read[i] = temp
+        if (values_read[i] == 66666 or values_read[i] != temp):
+            values_read[i] = temp
 
     sem.release()
 
