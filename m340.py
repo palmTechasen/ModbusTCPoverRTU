@@ -104,7 +104,7 @@ variables_read_only.append("CO2_D1")
 variables_read_only.append("PIR_D1")
 variables_read_only.append("Position_D1")
 variables_read_only.append("Humidity_D1")
-# variables_read_only.append("Error_D1")
+variables_read_only.append("Error_D1")
 variables_read_only.append("Airflow_D1")
 variables_read_only.append("T_CO2_D1")
 variables_read_only.append("PresRelief_D1")
@@ -212,6 +212,7 @@ plot_clicked = False
 # widgets for reading  in and writing out input register
 labels_text = list()
 labels_read = list()
+labels_read_text = list()
 entries = list()
 buttons_write = list()
 buttons_log = list()
@@ -227,6 +228,8 @@ for i in range(Diffusers):
     checked[i].set(1)
 for i in range(len(variables_read_write)):
     entry.append(StringVar())
+for i in range(len(variables)):
+    labels_read_text.append(StringVar())
 
 ExternalFrame = Frame(win, background="beige")
 CheckboxesFrame = Frame(win, background="blue")
@@ -241,7 +244,7 @@ for i in range(len(variables)):
     else:
         root = win
     labels_text.append(Label(root, text=variables[i]))
-    labels_read.append(Label(root, text=""))
+    labels_read.append(Label(root, textvariable=labels_read_text[i]))
 
     if i < len(variables_read_write):  # widget only for writing the holding registers from index 0-3
         entries.append(Entry(root, textvariable=entry[i], width=10))
@@ -495,7 +498,15 @@ def read_registers():
     # read the read-write registers to ensure the value is already set after a click, not overwritten by others
     for i in range(len(variables)):
         res = 1
-        if connections[register_addr_type[variables[i]][2]].is_open == False or connections[register_addr_type[variables[i]][2]].read_holding_registers(register_addr_type[variables[i]][0], 1) == None:
+        temp = 66666
+            
+        # select to read as int or float
+        try:
+            if register_addr_type[variables[i]][1].upper() == 'INT':
+                temp = utils.get_2comp(connections[register_addr_type[variables[i]][2]].read_holding_registers(register_addr_type[variables[i]][0], 1)[0], 16)
+            elif register_addr_type[variables[i]][1].upper() == 'FLOAT':
+                temp = connections[register_addr_type[variables[i]][2]].read_float(register_addr_type[variables[i]][0], 1)[0]
+        except:
             if connectionproblems[i] == 0:
                 labels_read[i].config(foreground="orange")
             connectionproblems[i] = connectionproblems[i] + 1
@@ -506,12 +517,8 @@ def read_registers():
             if connectionproblems[i] > 0:
                 connectionproblems[i] = 0
                 labels_read[i].config(foreground="green")
-        # select to read as int or float
-        if register_addr_type[variables[i]][1].upper() == 'INT':
-            temp = utils.get_2comp(connections[register_addr_type[variables[i]][2]].read_holding_registers(register_addr_type[variables[i]][0], 1)[0], 16)
-        elif register_addr_type[variables[i]][1].upper() == 'FLOAT':
-            temp = connections[register_addr_type[variables[i]][2]].read_float(register_addr_type[variables[i]][0], 1)[0]
-        if i<len(variables_read_write) and write_clicked == False:
+
+        if i<len(variables_read_write) and write_clicked == False and temp != 66666:
             values_write[i] = temp
         if addresses[register_addr_type[variables[i]][2]][2] == False:
             # print(str(temp)+"*"+str(register_addr_type[variables[i]][3]))
@@ -521,11 +528,11 @@ def read_registers():
             temp = temp
 
         if (values_read[i] == 66666 or values_read[i] != temp):
-            labels_read[i].config(text=round(temp, res))
+            labels_read_text[i].set(str(round(temp, res)))
         if i<len(variables_read_write) and write_clicked == False and (values_read[i] == 66666 or values_read[i] != temp):
             entry[i].set(str(temp))
 
-        if b_log_clicked[i] and (values_read[i] == 66666 or values_read[i] != temp) and (temp != 0 or values_read[i] != 0):
+        if b_log_clicked[i] and (values_read[i] == 66666 or values_read[i] != temp) and (temp != 0 or values_read[i] != 0) and (temp != 66666):
             log(b_filename[i], time, str(temp))
 
         if (values_read[i] == 66666 or values_read[i] != temp):
